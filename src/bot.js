@@ -3,6 +3,7 @@ const config = require('./config');
 const { client, syncTime } = require('./binance');
 const portfolio = require('./portfolio');
 const { getSignal } = require('./strategy');
+const firebase = require('./firebase');  // 🔵 NOUVEAU
 
 let lastTrade = 0;
 
@@ -63,6 +64,16 @@ async function run() {
             }
             
             await portfolio.openTrade("BUY", price, size);
+            
+            // 🔵 NOUVEAU : Sauvegarder le trade dans Firebase
+            await firebase.saveTrade({
+                side: "BUY",
+                price: price,
+                size: size,
+                timestamp: new Date().toISOString(),
+                type: "OPEN"
+            });
+            
             lastTrade = now;
             return;
         }
@@ -79,6 +90,16 @@ async function run() {
             }
             
             await portfolio.openTrade("SELL", price, size);
+            
+            // 🔵 NOUVEAU : Sauvegarder le trade dans Firebase
+            await firebase.saveTrade({
+                side: "SELL",
+                price: price,
+                size: size,
+                timestamp: new Date().toISOString(),
+                type: "OPEN"
+            });
+            
             lastTrade = now;
             return;
         }
@@ -94,6 +115,9 @@ async function run() {
     try {
         await syncTime();
         
+        // 🔵 NOUVEAU : Initialiser Firebase
+        firebase.initFirebase();
+        
         const positions = await client.futuresPositionRisk();
         const current = positions.find(p => p.symbol === config.symbol);
         
@@ -108,6 +132,7 @@ async function run() {
         
         console.log(`✅ BOT STARTED - ${config.symbol} on ${config.interval}`);
         console.log(`🎯 minScore: ${config.minScoreToTrade} | Cooldown: ${config.cooldown}ms\n`);
+        console.log(`🔥 Firebase: ${process.env.FIREBASE_PROJECT_ID ? 'Connecté' : 'Non configuré'}`);
         
         setInterval(run, 10000);
         
