@@ -11,7 +11,7 @@ function initFirebase() {
         const credentialsJson = process.env.FIREBASE_CREDENTIALS_JSON;
         
         if (!credentialsJson) {
-            console.log("⚠️ Firebase non configuré");
+            console.log("⚠️ Firebase non configuré (variables manquantes)");
             return false;
         }
         
@@ -23,7 +23,7 @@ function initFirebase() {
         
         db = admin.firestore();
         initialized = true;
-        console.log("✅ Firebase connecté");
+        console.log("✅ Firebase connecté - Project:", serviceAccount.project_id);
         return true;
         
     } catch (err) {
@@ -33,19 +33,50 @@ function initFirebase() {
 }
 
 async function saveTrade(trade) {
-    if (!db) return false;
+    if (!db) {
+        console.log("⚠️ Firebase non disponible, trade non sauvegardé");
+        return false;
+    }
     
     try {
-        await db.collection('trades').add({
-            ...trade,
-            timestamp: admin.firestore.FieldValue.serverTimestamp()
+        const docRef = await db.collection('trades').add({
+            side: trade.side,
+            price: trade.price,
+            size: trade.size,
+            type: trade.type || "OPEN",
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            date: new Date().toISOString()
         });
-        console.log("💾 Trade sauvegardé");
+        console.log(`💾 Trade sauvegardé dans Firebase (ID: ${docRef.id})`);
         return true;
     } catch (err) {
-        console.log("❌ Erreur sauvegarde:", err.message);
+        console.log("❌ Erreur sauvegarde Firebase:", err.message);
         return false;
     }
 }
 
-module.exports = { initFirebase, saveTrade };
+async function getRecentTrades(limit = 10) {
+    if (!db) return [];
+    
+    try {
+        const snapshot = await db.collection('trades')
+            .orderBy('timestamp', 'desc')
+            .limit(limit)
+            .get();
+        
+        const trades = [];
+        snapshot.forEach(doc => {
+            trades.push({ id: doc.id, ...doc.data() });
+        });
+        return trades;
+    } catch (err) {
+        console.log("❌ Erreur lecture:", err.message);
+        return [];
+    }
+}
+
+module.exports = { 
+    initFirebase, 
+    saveTrade,
+    getRecentTrades
+};
