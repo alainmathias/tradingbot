@@ -1,0 +1,146 @@
+const axios = require('axios');
+const config = require('./config');
+const { client, syncTime } = require('./binance');
+const portfolio = require('./portfolio');
+const { getSignal } = require('./strategy');  // Version améliorée
+
+let lastTrade = 0;
+
+// Taille de position dynamique (optionnel)
+function calculatePositionSize(balance, price) {
+    const riskAmount = balance * (config.riskPercent / 100);
+    const positionSize = riskAmount / (price * (config.stopLoss / 100));
+    return Math.min(Math.max(positionSize, 0.001), 0.01); // Entre 0.001 et 0.01 BTC
+}
+
+// Récupération des bougies
+async function getCandles() {
+    const res = await axios.get(
+        `https://api.binance.com/api/v3/klines?symbol=${config.symbol}&interval=${config.interval}&limit=100`
+    );
+    return {
+        closes: res.data.map(c => parseFloat(c[4])),
+        highs: res.data.map(c => parseFloat(c[2])),
+        lows: res.data.map(c => parseFloat(c[3])),
+        volumes: res.data.map(c => parseFloat(c[5]))
+    };
+}
+
+async function run() {
+    try {
+        // Récupération des données
+        const { closes, highs, lows, volumes } = await getCandles();
+        const price = closes[closes.length - 1];
+        
+        console.log(`\n🕐 ${new Date().toLocaleTimeString()} - Prix: ${price}`);
+
+        // Calcul du signal avec la stratégie avancée
+        const signal = getSignal(price, closes, volumes);
+        
+        const now = Date.now();
+
+        // Synchronisation avec Binance
+        const positions = await client.futuresPositionRisk();
+        const current = positions.find(p => p.symbol === config.symbol);
+        const qty = current ? Number(current.positionAmt) : 0;
+
+        if (qty === 0) {
+            if (portfolio.hasOpenPosition()) {
+                console.log("♻️ BINANCE CLOSED POSITION");
+                portfolio.setPosition(null);
+            }
+        } else {
+            portfolio.setPosition({
+                side: qty > 0 ? "BUY" : "SELL",
+                size: Math.abs(qty),
+                entry: Number(current.entryPrice)
+            });
+        }
+
+        const position = portfolio.getPosition();
+
+        // ===== SIGNAL BUY =====
+        if (signal === "BUY" && now - lastTrade > config.cooldown) {
+            if (position) {
+                if (position.side === "BUY") {
+                    console.log("⏳ BUY ALREADY OPEN");
+                    return;
+                }
+                console.log("🔄 REVERSAL SELL → BUY");
+                await syncTime();
+                await portfolio.closePosition();
+            }
+            
+            // Calcul taille dynamique (optionnel)
+            const accountInfo = await client.futuresAccount();
+            const balance = parseFloat(accountInfo.totalWalletBalance);
+            const size = calculatePositionSize(balance, price);
+            
+            await syncTime();
+            await portfolio.openTrade("BUY", price, size);
+            lastTrade = now;
+            return;
+        }
+        
+        // ===== SIGNAL SELL =====
+        if (signal === "SELL" && now - lastTrade > config.cooldown) {
+            if (position) {
+                if (position.side === "SELL") {
+                    console.log("⏳ SELL ALREADY OPEN");
+                    return;
+                }
+                console.log("🔄 REVERSAL BUY → SELL");
+                await syncTime();
+                await portfolio.closePosition();
+            }
+            
+            const accountInfo = await client.futuresAccount();
+            const balance = parseFloat(accountInfo.totalWalletBalance);
+            const size = calculatePositionSize(balance, price);
+            
+            await syncTime();
+            await portfolio.openTrade("SELL", price, size);
+            lastTrade = now;
+            return;
+        }
+        
+        if (signal === "NONE") {
+            // Log réduit pour éviter le spam
+            // console.log("⏸️ Pas de signal, en attente...");
+        }
+        
+    } catch (err) {
+        console.log("❌ BOT ERROR:", err.message);
+    }
+}
+
+// ===== DÉMARRAGE =====
+(async () => {
+    try {
+        await syncTime();
+        
+        const positions = await client.futuresPositionRisk();
+        const current = positions.find(p => p.symbol === config.symbol);
+        
+        if (current && Number(current.positionAmt) !== 0) {
+            portfolio.setPosition({
+                side: Number(current.positionAmt) > 0 ? "BUY" : "SELL",
+                size: Math.abs(Number(current.positionAmt)),
+                entry: Number(current.entryPrice)
+            });
+            console.log("♻️ POSITION RESTORED");
+        }
+        
+        // Afficher le compte
+        const accountInfo = await client.futuresAccount();
+        console.log(`💰 Balance: ${parseFloat(accountInfo.totalWalletBalance).toFixed(2)} USDT`);
+        console.log(`✅ BOT STARTED - ${config.symbol} on ${config.interval}`);
+        console.log(`📊 Stratégie: RSI + MACD + EMA + Volume`);
+        console.log(`🎯 minScore: ${config.minScoreToTrade} | Cooldown: ${config.cooldown}ms\n`);
+        
+        setInterval(run, 10000);
+        
+    } catch (err) {
+        console.log("❌ START ERROR:", err.message);
+    }
+})();

@@ -1,0 +1,113 @@
+const { client } = require('./binance');
+
+
+const config = require('./config');
+let position = null;
+
+function getPositionSize(balance, riskPercent, stopLossPercent) {
+
+    const riskAmount = balance * (riskPercent / 100);
+    return riskAmount / stopLossPercent;
+}
+
+
+function hasOpenPosition() {
+    return position !== null;
+}
+
+function getPosition() {
+    return position;
+}
+async function openTrade(side, price, size) {
+
+    try {
+
+        const order = await client.futuresOrder({
+            symbol: "BTCUSDT",
+            side,
+            type: "MARKET",
+            quantity: Number(size.toFixed(3))
+        });
+
+        position = {
+            side,
+            entry: price,
+            size,
+            time: Date.now(),
+
+            stopLoss:
+                side === "BUY"
+                    ? price * (1 - config.stopLoss / 100)
+                    : price * (1 + config.stopLoss / 100),
+
+            takeProfit:
+                side === "BUY"
+                    ? price * (1 + config.takeProfit / 100)
+                    : price * (1 - config.takeProfit / 100)
+        };
+
+        console.log("ENTRY:", position.entry);
+        console.log("SL:", position.stopLoss);
+        console.log("TP:", position.takeProfit);
+
+        console.log("✅ ORDER OK");
+        console.log("ORDER ID:", order.orderId);
+
+        return order;
+
+    } catch (err) {
+
+        console.log("❌ ORDER ERROR:", err.message);
+
+    }
+}
+      
+     async function closePosition() {
+
+    if (!position) {
+        console.log("⚠️ NO POSITION TO CLOSE");
+        return;
+    }
+
+    try {
+
+        const closeSide =
+            position.side === "BUY"
+                ? "SELL"
+                : "BUY";
+
+        console.log("📡 CLOSING POSITION ON BINANCE...");
+
+        const order = await client.futuresOrder({
+    symbol: "BTCUSDT",
+    side: closeSide,
+    type: "MARKET",
+    quantity: Number(position.size.toFixed(3))
+});
+
+        console.log("🔒 POSITION CLOSED");
+        console.log("CLOSE ORDER ID:", order.orderId);
+
+        position = null;
+
+    } catch (err) {
+
+        console.log(
+            "❌ CLOSE ERROR:",
+            err.message
+        );
+
+    }
+}
+
+
+
+
+
+module.exports = {
+    openTrade,
+    closePosition,
+    getPositionSize,
+    hasOpenPosition,
+    getPosition
+};

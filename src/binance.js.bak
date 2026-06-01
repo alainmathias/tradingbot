@@ -1,0 +1,36 @@
+/*const Binance = require('binance-api-node').default;
+const axios = require('axios');
+const config = require('./config');
+
+// Configuration du client pour le testnet Futures
+const client = Binance({
+    apiKey: config.apiKey,
+    apiSecret: config.apiSecret,
+    httpFutures: 'https://testnet.binancefuture.com'
+});
+
+let timeOffset = 0;
+
+async function syncTime() {
+    try {
+        const res = await axios.get(
+            'https://testnet.binancefuture.com/fapi/v1/time'
+        );
+        const serverTime = res.data.serverTime;
+        timeOffset = serverTime - Date.now();
+        console.log("🕒 BINANCE FUTURES TIME:", serverTime);
+        console.log("🕒 OFFSET:", timeOffset);
+    } catch (err) {
+        console.log("❌ TIME SYNC ERROR:", err.message);
+    }
+}
+
+function getTimestamp() {
+    return Date.now() + timeOffset;
+}
+
+module.exports = {
+    client,
+    syncTime,
+    getTimestamp
+};*/

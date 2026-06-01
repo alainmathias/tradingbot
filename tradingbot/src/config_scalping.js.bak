@@ -1,0 +1,31 @@
+module.exports = {
+
+    apiKey: 'Pbtsd0fEA6nY3WDvoP9OzoQogFBo2fMVumWxPrt6I4DmP5Z3wHRaXU7OCbMMZjN4',
+
+    apiSecret: 'uO7EuGZMmruaFo47Nbzol8IeTHdCCX4NVs4GDa79dR0BcNPSBXeeq1FahBZVLjPR',
+
+    symbol: "BTCUSDT",
+
+    interval: 10000,
+
+    risk: {
+
+    
+
+        maxTradeAmount: 0.001,
+
+        maxDailyLoss: 2,
+
+        minScoreToTrade: 55
+
+    },
+
+    stopLoss: 1,
+
+    takeProfit: 1.5,
+
+    cooldown: 15000,
+
+    riskPercent: 1
+
+};

@@ -1,0 +1,47 @@
+function detectBreakout(
+    closes,
+    volume,
+    avgVolume
+) {
+
+    const recent =
+        closes.slice(-20);
+
+    const max =
+        Math.max(...recent);
+
+    const min =
+        Math.min(...recent);
+
+    const current =
+        closes[closes.length - 1];
+
+    // 🚀 Bull breakout
+    if (
+        current >= max * 0.999 &&
+        volume > avgVolume * 1.5
+    ) {
+
+        return "BULL_BREAKOUT";
+
+    }
+
+    // 📉 Bear breakout
+    if (
+        current <= min * 1.001 &&
+        volume > avgVolume * 1.5
+    ) {
+
+        return "BEAR_BREAKOUT";
+
+    }
+
+    return "NONE";
+
+}
+
+module.exports = {
+
+    detectBreakout
+
+};

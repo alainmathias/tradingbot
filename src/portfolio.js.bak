@@ -1,0 +1,201 @@
+const { client } = require('./binance');
+const config = require('./config');
+
+let position = null;
+
+// CALCUL DE LA TAILLE
+function getPositionSize(balance, riskPercent, stopLossPercent) {
+
+    const risk = balance * (riskPercent / 100);
+
+    return risk / stopLossPercent;
+}
+
+// POSITION OUVERTE ?
+function hasOpenPosition() {
+    return position !== null;
+}
+
+// RETOURNE LA POSITION
+function getPosition() {
+    return position;
+}
+
+// RESTAURATION
+function setPosition(pos) {
+    position = pos;
+}
+
+// OUVERTURE POSITION
+async function openTrade(side, price, size) {
+
+    try {
+
+        // Vérification réelle Binance
+        const positions = await client.futuresPositionRisk();
+
+        const btc = positions.find(
+            p => p.symbol === config.symbol
+        );
+
+        if (btc && Number(btc.positionAmt) !== 0) {
+
+            console.log(
+                "⏳ BINANCE POSITION EXISTS:",
+                btc.positionAmt
+            );
+
+            return;
+        }
+
+        console.log("📡 SENDING ORDER...");
+        console.log("SIDE:", side);
+        console.log("SIZE:", size);
+
+        const order = await client.futuresOrder({
+            symbol: config.symbol,
+            side,
+            type: "MARKET",
+            quantity: Number(size.toFixed(3)),
+            recvWindow: 60000
+        });
+
+        const stopLoss =
+            side === "BUY"
+                ? price * (1 - config.stopLoss / 100)
+                : price * (1 + config.stopLoss / 100);
+
+        const takeProfit =
+            side === "BUY"
+                ? price * (1 + config.takeProfit / 100)
+                : price * (1 - config.takeProfit / 100);
+
+        // STOP LOSS
+        await client.futuresOrder({
+            symbol: config.symbol,
+            side: side === "BUY" ? "SELL" : "BUY",
+            type: "STOP_MARKET",
+            stopPrice: Number(stopLoss.toFixed(2)),
+            closePosition: true,
+            recvWindow: 60000
+        });
+
+        // TAKE PROFIT
+        await client.futuresOrder({
+            symbol: config.symbol,
+            side: side === "BUY" ? "SELL" : "BUY",
+            type: "TAKE_PROFIT_MARKET",
+            stopPrice: Number(takeProfit.toFixed(2)),
+            closePosition: true,
+            recvWindow: 60000
+        });
+
+        position = {
+            side,
+            entry: price,
+            size,
+            stopLoss,
+            takeProfit,
+            time: Date.now()
+        };
+
+        console.log("ENTRY:", position.entry);
+        console.log("SL:", position.stopLoss);
+        console.log("TP:", position.takeProfit);
+
+        console.log("✅ ORDER OK");
+        console.log("ORDER ID:", order.orderId);
+
+        return order;
+
+    } catch (err) {
+
+        console.log(
+            "❌ OPEN ERROR:",
+            err.message
+        );
+    }
+}
+
+// FERMETURE POSITION
+async function closePosition() {
+
+    if (!position) {
+        console.log("⚠️ NO POSITION");
+        return;
+    }
+
+    try {
+
+        const positions = await client.futuresPositionRisk();
+
+        const btc = positions.find(
+            p => p.symbol === config.symbol
+        );
+
+        if (!btc || Number(btc.positionAmt) === 0) {
+
+            console.log("⚠️ NO BINANCE POSITION");
+
+            position = null;
+
+            return;
+        }
+
+        console.log(
+            "REAL BINANCE SIZE:",
+            btc.positionAmt
+        );
+
+        const closeSide =
+            Number(btc.positionAmt) > 0
+                ? "SELL"
+                : "BUY";
+
+        const realSize =
+            Math.abs(Number(btc.positionAmt));
+
+        console.log("📡 CLOSING POSITION...");
+        console.log("SIDE:", closeSide);
+        console.log("SIZE:", realSize);
+
+        const order = await client.futuresOrder({
+            symbol: config.symbol,
+            side: closeSide,
+            type: "MARKET",
+            quantity: realSize,
+            reduceOnly: true,
+            recvWindow: 60000
+        });
+
+        console.log("🔒 POSITION CLOSED");
+        console.log("CLOSE ORDER ID:", order.orderId);
+
+        // Vérification après fermeture
+        await new Promise(r => setTimeout(r, 3000));
+
+position = null;
+
+console.log(
+    "♻️ BINANCE CLOSED POSITION"
+);
+
+        return order;
+
+    } catch (err) {
+
+        console.log(
+            "❌ CLOSE ERROR:",
+            err.message
+        );
+    }
+}
+
+module.exports = {
+    openTrade,
+    closePosition,
+    hasOpenPosition,
+    getPosition,
+    setPosition,
+    getPositionSize
+};

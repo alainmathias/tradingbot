@@ -1,0 +1,124 @@
+const config = require('./config');
+const { getRSI, getMACD, getEMA, getAverageVolume } = require('./indicators');
+
+let lastSignal = "NONE";
+let consecutiveSignals = 0;
+
+function getRSIScore(rsi) {
+    if (rsi <= 25) return 100;
+    if (rsi <= 30) return 85;
+    if (rsi <= 35) return 60;
+    if (rsi <= 45) return 30;
+    
+    if (rsi >= 75) return -100;
+    if (rsi >= 70) return -85;
+    if (rsi >= 65) return -60;
+    if (rsi >= 55) return -30;
+    
+    return 0;
+}
+
+function getMACDScore(macd) {
+    if (macd.histogram > 0 && macd.histogram > Math.abs(macd.signalLine) * 0.1) {
+        return 40;
+    }
+    if (macd.histogram < 0 && Math.abs(macd.histogram) > Math.abs(macd.signalLine) * 0.1) {
+        return -40;
+    }
+    return 0;
+}
+
+function getEMAScore(price, emaFast, emaSlow) {
+    if (price > emaFast && emaFast > emaSlow) {
+        return 30;
+    }
+    if (price < emaFast && emaFast < emaSlow) {
+        return -30;
+    }
+    return 0;
+}
+
+function getVolumeScore(currentVolume, avgVolume) {
+    const volumeRatio = currentVolume / avgVolume;
+    if (volumeRatio > 1.5) return 20;
+    if (volumeRatio > 1.2) return 10;
+    if (volumeRatio < 0.5) return -15;
+    return 0;
+}
+
+function getTrendStrengthScore(rsi, macd, emaScore) {
+    let strength = 0;
+    
+    if ((rsi > 50 && emaScore > 0) || (rsi < 50 && emaScore < 0)) {
+        strength += 15;
+    }
+    
+    if ((macd.histogram > 0 && emaScore > 0) || (macd.histogram < 0 && emaScore < 0)) {
+        strength += 15;
+    }
+    
+    return Math.min(strength, 30);
+}
+
+function getSignal(price, closes, volumes) {
+    // Calcul des indicateurs
+    const rsi = getRSI(closes);
+    const macd = getMACD(closes);
+    const emaFast = getEMA(closes, 9);
+    const emaSlow = getEMA(closes, 21);
+    const avgVolume = getAverageVolume(volumes);
+    const currentVolume = volumes[volumes.length - 1];
+    
+    // Calcul du score total
+    let totalScore = 0;
+    totalScore += getRSIScore(rsi);
+    totalScore += getMACDScore(macd);
+    totalScore += getEMAScore(price, emaFast, emaSlow);
+    totalScore += getVolumeScore(currentVolume, avgVolume);
+    totalScore += getTrendStrengthScore(rsi, macd, getEMAScore(price, emaFast, emaSlow));
+    
+    // Vérification d'alignement des indicateurs
+    const indicatorsAlign = [
+        getRSIScore(rsi) !== 0,
+        getMACDScore(macd) !== 0,
+        getEMAScore(price, emaFast, emaSlow) !== 0
+    ].filter(Boolean).length;
+    
+    if (indicatorsAlign < 2 && Math.abs(totalScore) < 50) {
+        console.log("⚠️ Indicateurs non alignés, pas de signal");
+        return "NONE";
+    }
+    
+    // Détermination du signal
+    let signal = "NONE";
+    if (totalScore >= config.minScoreToTrade) {
+        signal = "BUY";
+    } else if (totalScore <= -config.minScoreToTrade) {
+        signal = "SELL";
+    }
+    
+    // Confirmation sur 2 bougies consécutives
+    if (signal === lastSignal && signal !== "NONE") {
+        consecutiveSignals++;
+        if (consecutiveSignals < 2) {
+            console.log(`⏳ Confirmation ${consecutiveSignals}/2 pour ${signal}`);
+            return "NONE";
+        }
+    } else {
+        consecutiveSignals = signal === "NONE" ? 0 : 1;
+    }
+    
+    lastSignal = signal;
+    
+    // Logs détaillés
+    console.log("\n📊 INDICATEURS:");
+    console.log(`  RSI: ${rsi.toFixed(2)} (score: ${getRSIScore(rsi)})`);
+    console.log(`  MACD Histo: ${macd.histogram.toFixed(2)} (score: ${getMACDScore(macd)})`);
+    console.log(`  EMA(9): ${emaFast.toFixed(2)} | EMA(21): ${emaSlow.toFixed(2)}`);
+    console.log(`  Volume ratio: ${(currentVolume / avgVolume).toFixed(2)}x (score: ${getVolumeScore(currentVolume, avgVolume)})`);
+    console.log(`  TOTAL SCORE: ${totalScore} → SIGNAL: ${signal}\n`);
+    
+    return signal;
+}
+
+module.exports = { getSignal };
