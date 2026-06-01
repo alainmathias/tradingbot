@@ -1,5 +1,5 @@
 // Calcul du RSI
-/*function getRSI(closes, period = 14) {
+function getRSI(closes, period = 14) {
     if (closes.length < period + 1) return 50;
 
     let gains = 0;
@@ -76,31 +76,3 @@ function getAverageVolume(volumes, period = 20) {
 module.exports = { getRSI, getMACD, getEMA, getAverageVolume };
 
 
-*/
-
-
-// Calcul du RSI seulement (pour débuter)
-function getRSI(closes, period = 14) {
-    if (closes.length < period + 1) return 50;
-
-    let gains = 0;
-    let losses = 0;
-
-    for (let i = closes.length - period; i < closes.length; i++) {
-        const diff = closes[i] - closes[i - 1];
-        if (diff >= 0) {
-            gains += diff;
-        } else {
-            losses -= diff;
-        }
-    }
-
-    const avgGain = gains / period;
-    const avgLoss = losses / period;
-
-    if (avgLoss === 0) return 100;
-    const rs = avgGain / avgLoss;
-    return 100 - (100 / (1 + rs));
-}
-
-module.exports = { getRSI };
