@@ -16,10 +16,9 @@
     cooldown: 30000       // ← 30 secondes entre les trades
 };*/
 
-require('dotenv').config();
-
+// config.js - Version Railway
 module.exports = {
-    // ===== API KEYS (depuis .env) =====
+    // ===== API KEYS (depuis variables Railway) =====
     apiKey: process.env.BINANCE_API_KEY,
     apiSecret: process.env.BINANCE_API_SECRET,
     useTestnet: process.env.USE_TESTNET === 'true' || true,
@@ -29,13 +28,13 @@ module.exports = {
     interval: "5m",
     
     // ===== GESTION DES RISQUES =====
-    riskPercent: 1,        // % du capital risqué
-    stopLoss: 1.5,         // %
-    takeProfit: 2.5,       // %
+    riskPercent: 1,
+    stopLoss: 1.5,
+    takeProfit: 2.5,
     
     // ===== STRATÉGIE =====
-    minScoreToTrade: 65,   // Seuil pour BUY/SELL
-    cooldown: 30000,       // 30 secondes entre les trades
+    minScoreToTrade: 65,
+    cooldown: 30000,
     
     // ===== DEBUG =====
     debug: false
