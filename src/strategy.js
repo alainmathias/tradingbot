@@ -1,4 +1,4 @@
-/*const config = require('./config');
+const config = require('./config');
 const { getRSI, getMACD, getEMA, getAverageVolume } = require('./indicators');
 
 let lastSignal = "NONE";
@@ -123,39 +123,5 @@ function getSignal(price, closes, volumes) {
 
 module.exports = { getSignal };
 
-*/
 
 
-const config = require('./config');
-const { getRSI } = require('./indicators');
-
-function getScore(rsi) {
-    if (rsi <= 30) return 100;      // SURVENTE → ACHAT
-    if (rsi <= 40) return 50;
-    if (rsi >= 70) return -100;     // SURACHAT → VENTE
-    if (rsi >= 60) return -50;
-    return 0;
-}
-
-function getSignal(price, closes, volumes) {
-    // Calcul du RSI seulement
-    const rsi = getRSI(closes);
-    const score = getScore(rsi);
-    
-    console.log(`\n📊 RSI: ${rsi.toFixed(2)} | SCORE: ${score}`);
-    
-    // Signal
-    if (score >= config.minScoreToTrade) {
-        console.log("🔵 SIGNAL: BUY");
-        return "BUY";
-    }
-    if (score <= -config.minScoreToTrade) {
-        console.log("🔴 SIGNAL: SELL");
-        return "SELL";
-    }
-    
-    console.log("⚪ SIGNAL: NONE");
-    return "NONE";
-}
-
-module.exports = { getSignal };
