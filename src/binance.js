@@ -35,20 +35,26 @@ module.exports = {
     getTimestamp
 };*/
 
+
 const Binance = require('binance-api-node').default;
 const axios = require('axios');
 const config = require('./config');
 
-// Vérification que les clés existent
+// Supprimez ce bloc qui cause l'erreur :
+// if (!config.apiKey || !config.apiSecret) {
+//     console.error("❌ ERREUR: Clés API manquantes dans .env");
+//     console.error("   Créez un fichier .env avec:");
+//     console.error("   BINANCE_API_KEY=votre_clé");
+//     process.exit(1);
+// }
+
+// Remplacez par une vérification plus simple
 if (!config.apiKey || !config.apiSecret) {
-    console.error("❌ ERREUR: Clés API manquantes dans .env");
-    console.error("   Créez un fichier .env avec:");
-    console.error("   BINANCE_API_KEY=votre_clé");
-    console.error("   BINANCE_API_SECRET=votre_secret");
+    console.error("❌ ERREUR: Clés API manquantes dans les variables d'environnement");
+    console.error("   Configurez BINANCE_API_KEY et BINANCE_API_SECRET sur Railway");
     process.exit(1);
 }
 
-// Configuration du client
 const baseURL = config.useTestnet 
     ? 'https://testnet.binancefuture.com'
     : 'https://fapi.binance.com';
