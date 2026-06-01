@@ -50,7 +50,17 @@ async function run() {
         }
 
         const position = portfolio.getPosition();
-        const size = 0.001;  // Taille fixe pour le testnet
+        // Au lieu de :
+//const size = 0.001;
+
+// Utilisez plutôt (selon la précision requise) :
+//const size = 0.001;  // pour BTCUSDT Futures, c'est OK en théorie
+
+// Ou essayez une taille plus petite :
+//const size = 0.0001;  // 10,000 satoshis
+
+// Pour être sûr, utilisez toFixed(3) :
+const size = parseFloat((0.001).toFixed(3));
 
         // SIGNAL BUY
         if (signal === "BUY" && now - lastTrade > config.cooldown) {
