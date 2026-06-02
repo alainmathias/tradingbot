@@ -3,23 +3,49 @@ const config = require('./config');
 const { client, syncTime } = require('./binance');
 const portfolio = require('./portfolio');
 const { getSignal } = require('./strategy');
-const firebase = require('./firebase');  // 🔵 NOUVEAU
+const firebase = require('./firebase');
 
 let lastTrade = 0;
 
-// Récupération des bougies
+// ========== FONCTION GETCANDLES (définie en premier) ==========
 async function getCandles() {
-    const res = await axios.get(
-        `https://testnet.binancefuture.com/fapi/v1/klines?symbol=${config.symbol}&interval=${config.interval}&limit=100`
-    );
-    return {
-        closes: res.data.map(c => parseFloat(c[4])),
-        highs: res.data.map(c => parseFloat(c[2])),
-        lows: res.data.map(c => parseFloat(c[3])),
-        volumes: res.data.map(c => parseFloat(c[5]))
-    };
+    try {
+        const baseUrl = config.useTestnet 
+            ? 'https://testnet.binancefuture.com'
+            : 'https://fapi.binance.com';
+            
+        const res = await axios.get(
+            `${baseUrl}/fapi/v1/klines?symbol=${config.symbol}&interval=${config.interval}&limit=100`
+        );
+        
+        if (!res.data || !res.data.length) {
+            console.log("⚠️ Aucune donnée de bougies reçue");
+            return {
+                closes: [],
+                highs: [],
+                lows: [],
+                volumes: []
+            };
+        }
+        
+        return {
+            closes: res.data.map(c => parseFloat(c[4])),
+            highs: res.data.map(c => parseFloat(c[2])),
+            lows: res.data.map(c => parseFloat(c[3])),
+            volumes: res.data.map(c => parseFloat(c[5]))
+        };
+    } catch (err) {
+        console.log("❌ Erreur getCandles:", err.message);
+        return {
+            closes: [],
+            highs: [],
+            lows: [],
+            volumes: []
+        };
+    }
 }
 
+// ========== SYNCHRONISATION AVEC BINANCE ==========
 async function syncPositionWithBinance() {
     try {
         // 1. Récupérer la position actuelle sur Binance
@@ -63,8 +89,12 @@ async function syncPositionWithBinance() {
             
             // Si pas trouvé, utiliser le prix actuel
             if (!exitPrice) {
-                const closes = await getCandles();
-                exitPrice = closes[closes.length - 1];
+                const candles = await getCandles();
+                if (candles.closes && candles.closes.length > 0) {
+                    exitPrice = candles.closes[candles.closes.length - 1];
+                } else {
+                    exitPrice = localPosition.entry; // Fallback
+                }
                 closeReason = "SL/TP (prix approximatif)";
             }
             
@@ -107,26 +137,20 @@ async function syncPositionWithBinance() {
     }
 }
 
-// Fonction helper pour récupérer les prix
-async function getCandles() {
-    const res = await axios.get(
-        `https://${config.useTestnet ? 'testnet.binancefuture.com' : 'fapi.binance.com'}/fapi/v1/klines?symbol=${config.symbol}&interval=1m&limit=1`
-    );
-    return res.data.map(c => parseFloat(c[4]));
-}
-
+// ========== FONCTION PRINCIPALE RUN ==========
 async function run() {
-
-
-
-        
-
     try {
-// 🔵 AJOUTER CETTE LIGNE AU DÉBUT
+        // 🔵 Synchronisation avec Binance au début de chaque cycle
         await syncPositionWithBinance();
         
-        
+        // Récupération des données
         const { closes, volumes } = await getCandles();
+        
+        if (!closes || closes.length === 0) {
+            console.log("⚠️ Pas de données de prix");
+            return;
+        }
+        
         const price = closes[closes.length - 1];
         
         console.log(`\n🕐 ${new Date().toLocaleTimeString()} - Prix: ${price}`);
@@ -154,17 +178,9 @@ async function run() {
         }
 
         const position = portfolio.getPosition();
-        // Au lieu de :
-//const size = 0.001;
-
-// Utilisez plutôt (selon la précision requise) :
-//const size = 0.001;  // pour BTCUSDT Futures, c'est OK en théorie
-
-// Ou essayez une taille plus petite :
-//const size = 0.0001;  // 10,000 satoshis
-
-// Pour être sûr, utilisez toFixed(3) :
-const size = parseFloat((0.001).toFixed(3));
+        
+        // Calcul taille position (basée sur capital 50 USDT)
+        const size = 0.0005; // Taille réduite pour 50 USDT
 
         // SIGNAL BUY
         if (signal === "BUY" && now - lastTrade > config.cooldown) {
@@ -178,16 +194,6 @@ const size = parseFloat((0.001).toFixed(3));
             }
             
             await portfolio.openTrade("BUY", price, size);
-            
-            // 🔵 NOUVEAU : Sauvegarder le trade dans Firebase
-            await firebase.saveTrade({
-                side: "BUY",
-                price: price,
-                size: size,
-                timestamp: new Date().toISOString(),
-                type: "OPEN"
-            });
-            
             lastTrade = now;
             return;
         }
@@ -204,16 +210,6 @@ const size = parseFloat((0.001).toFixed(3));
             }
             
             await portfolio.openTrade("SELL", price, size);
-            
-            // 🔵 NOUVEAU : Sauvegarder le trade dans Firebase
-            await firebase.saveTrade({
-                side: "SELL",
-                price: price,
-                size: size,
-                timestamp: new Date().toISOString(),
-                type: "OPEN"
-            });
-            
             lastTrade = now;
             return;
         }
@@ -229,7 +225,7 @@ const size = parseFloat((0.001).toFixed(3));
     try {
         await syncTime();
         
-        // 🔵 NOUVEAU : Initialiser Firebase
+        // Initialiser Firebase
         firebase.initFirebase();
         
         const positions = await client.futuresPositionRisk();
