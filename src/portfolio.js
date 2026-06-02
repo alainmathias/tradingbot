@@ -6,34 +6,16 @@ let position = null;
 
 // ========== NOUVEAU : CALCUL DYNAMIQUE DE LA TAILLE ==========
 function calculatePositionSize(price) {
-    // Récupérer le capital depuis la config (50 USDT)
     const capital = config.tradingCapital || 50;
-    const riskPercent = config.riskPercent || 1;
-    const stopLossPercent = config.stopLoss || 1.5;
+    const riskPercent = config.riskPercent || 0.5;  // ← 0.5%
+    const stopLossPercent = config.stopLoss || 1;    // ← 1%
     
-    // Risque en USDT (ex: 50 × 1% = 0.50 USDT)
-    const riskAmount = capital * (riskPercent / 100);
-    
-    // Distance du stop loss en USDT (ex: 65000 × 1.5% = 975 USDT)
+    const riskAmount = capital * (riskPercent / 100);  // 50 × 0.005 = 0.25 USDT
     const stopDistance = price * (stopLossPercent / 100);
-    
-    // Taille de la position (ex: 0.50 ÷ 975 = 0.00051 BTC)
     let size = riskAmount / stopDistance;
     
-    // Arrondir à 3 décimales (minimum 0.001 BTC pour Binance Futures)
     size = Math.max(size, 0.001);
-    size = parseFloat(size.toFixed(3));
-    
-    // Afficher les détails du calcul
-    console.log(`\n💰 GESTION DES RISQUES (capital: ${capital} USDT):`);
-    console.log(`   Risque par trade: ${riskAmount.toFixed(2)} USDT (${riskPercent}%)`);
-    console.log(`   Prix BTC: ${price.toFixed(2)} USDT`);
-    console.log(`   Distance SL: ${stopDistance.toFixed(2)} USDT (${stopLossPercent}%)`);
-    console.log(`   Taille position: ${size} BTC`);
-    console.log(`   Exposition: ${(size * price).toFixed(2)} USDT`);
-    console.log(`   Perte max si SL: ${(size * price * stopLossPercent / 100).toFixed(2)} USDT\n`);
-    
-    return size;
+    return parseFloat(size.toFixed(3));
 }
 
 // ========== ANCIENNE FONCTION (gardée pour compatibilité) ==========
