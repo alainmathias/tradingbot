@@ -20,8 +20,75 @@ async function getCandles() {
     };
 }
 
-async function run() {
+
+// Vérifier et synchroniser la position avec Binance
+async function syncPositionWithBinance() {
     try {
+        const positions = await client.futuresPositionRisk();
+        const current = positions.find(p => p.symbol === config.symbol);
+        const qty = current ? Number(current.positionAmt) : 0;
+        
+        // Position locale (stockée dans portfolio)
+        const localPosition = portfolio.getPosition();
+        
+        // Cas 1: Position fermée sur Binance mais ouverte en local
+        if (qty === 0 && localPosition) {
+            console.log("🔄 Détection: Position fermée sur Binance (SL/TP probablement touché)");
+            
+            // Récupérer le prix de fermeture approximatif
+            const closes = await getCandles();
+            const currentPrice = closes[closes.length - 1];
+            
+            // Calculer le P&L estimé
+            const pnl = localPosition.side === "BUY"
+                ? (currentPrice - localPosition.entry) * localPosition.size
+                : (localPosition.entry - currentPrice) * localPosition.size;
+            
+            // Sauvegarder la fermeture dans Firebase
+            await firebase.saveTrade({
+                side: localPosition.side,
+                entryPrice: localPosition.entry,
+                exitPrice: currentPrice,
+                size: localPosition.size,
+                pnl: pnl.toFixed(2),
+                type: "CLOSED",
+                closeReason: "SL/TP (auto)",
+                timestamp: new Date().toISOString()
+            });
+            
+            console.log(`✅ Position fermée détectée | P&L estimé: ${pnl.toFixed(2)} USDT`);
+            
+            // Nettoyer la position locale
+            portfolio.setPosition(null);
+        }
+        
+        // Cas 2: Position ouverte sur Binance mais pas en local (au démarrage)
+        if (qty !== 0 && !localPosition) {
+            console.log("🔄 Synchronisation: Position ouverte sur Binance détectée");
+            portfolio.setPosition({
+                side: qty > 0 ? "BUY" : "SELL",
+                size: Math.abs(qty),
+                entry: Number(current.entryPrice)
+            });
+        }
+        
+    } catch (err) {
+        console.log("❌ Erreur synchronisation:", err.message);
+    }
+}
+
+
+async function run() {
+
+
+
+        
+
+    try {
+// 🔵 AJOUTER CETTE LIGNE AU DÉBUT
+        await syncPositionWithBinance();
+        
+        
         const { closes, volumes } = await getCandles();
         const price = closes[closes.length - 1];
         
