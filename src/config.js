@@ -48,6 +48,7 @@ module.exports = {
 
     require('dotenv').config();
 
+// config.js - Version finale optimisée
 module.exports = {
     // ===== API KEYS =====
     apiKey: process.env.BINANCE_API_KEY,
@@ -56,18 +57,19 @@ module.exports = {
     
     // ===== PARAMÈTRES DE TRADING =====
     symbol: "BTCUSDT",
-    interval: "5m",
+    interval: "5m",              // Timeframe plus rapide
     
-    // ===== GESTION DES RISQUES (OPTIMISÉ) =====
+    // ===== GESTION DES RISQUES =====
     tradingCapital: 50,
-    riskPercent: 0.5,       // ← MODIFIÉ (0.5%)
-    stopLoss: 1,            // ← MODIFIÉ (1%)
-    takeProfit: 2,          // ← MODIFIÉ (2%)
+    riskPercent: 0.5,            // 0.25$ par trade
+    stopLoss: 1,                 // 1%
+    takeProfit: 2,               // 2%
     
     // ===== STRATÉGIE =====
     minScoreToTrade: 65,
-    cooldown: 30000,
+    cooldown: 30000,             // 30 secondes
     
-    // ===== DEBUG =====
-    debug: false
+    // ===== FILTRE ATR =====
+    useATRFilter: true,          // ← NOUVEAU
+    atrMinRatio: 0.5,            // ← Évite volatilité < 50% de la moyenne
 };
