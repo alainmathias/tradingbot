@@ -49,24 +49,24 @@ module.exports = {
     require('dotenv').config();
 
 module.exports = {
-    // ===== API KEYS (Testnet) =====
+    // ===== API KEYS =====
     apiKey: process.env.BINANCE_API_KEY,
     apiSecret: process.env.BINANCE_API_SECRET,
-    useTestnet: true,  // ← Reste TRUE
+    useTestnet: true,
     
     // ===== PARAMÈTRES DE TRADING =====
     symbol: "BTCUSDT",
-    interval: "5m",              // Timeframe original
+    interval: "5m",
     
-    // ===== GESTION DES RISQUES =====
-    tradingCapital: 50,          // ← 50 USDT virtuels
-    riskPercent: 1,              // 1% = 0.50 USDT par trade
-    stopLoss: 1.5,               // 1.5%
-    takeProfit: 2.5,             // 2.5%
+    // ===== GESTION DES RISQUES (OPTIMISÉ) =====
+    tradingCapital: 50,
+    riskPercent: 0.5,       // ← MODIFIÉ (0.5%)
+    stopLoss: 1,            // ← MODIFIÉ (1%)
+    takeProfit: 2,          // ← MODIFIÉ (2%)
     
-    // ===== STRATÉGIE ORIGINALE =====
-    minScoreToTrade: 65,         // Seuil élevé
-    cooldown: 30000,             // 30 secondes
+    // ===== STRATÉGIE =====
+    minScoreToTrade: 65,
+    cooldown: 30000,
     
     // ===== DEBUG =====
     debug: false
