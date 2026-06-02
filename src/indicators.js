@@ -73,6 +73,22 @@ function getAverageVolume(volumes, period = 20) {
     return sum / period;
 }
 
-module.exports = { getRSI, getMACD, getEMA, getAverageVolume };
+
+// indicators.js - Ajouter cette fonction
+function getATR(highs, lows, closes, period = 14) {
+    if (highs.length < period + 1) return 0;
+    let trSum = 0;
+    for (let i = highs.length - period; i < highs.length; i++) {
+        const hl = highs[i] - lows[i];
+        const hc = Math.abs(highs[i] - closes[i - 1]);
+        const lc = Math.abs(lows[i] - closes[i - 1]);
+        const tr = Math.max(hl, hc, lc);
+        trSum += tr;
+    }
+    return trSum / period;
+}
+
+module.exports = { getRSI, getMACD, getEMA, getAverageVolume, getATR };
+//module.exports = { getRSI, getMACD, getEMA, getAverageVolume };
 
 
