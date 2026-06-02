@@ -11,7 +11,7 @@ function initFirebase() {
         const credentialsJson = process.env.FIREBASE_CREDENTIALS_JSON;
         
         if (!credentialsJson) {
-            console.log("⚠️ Firebase non configuré (variables manquantes)");
+            console.log("⚠️ Firebase non configuré");
             return false;
         }
         
@@ -23,7 +23,7 @@ function initFirebase() {
         
         db = admin.firestore();
         initialized = true;
-        console.log("✅ Firebase connecté - Project:", serviceAccount.project_id);
+        console.log("✅ Firebase connecté");
         return true;
         
     } catch (err) {
@@ -32,51 +32,35 @@ function initFirebase() {
     }
 }
 
+// src/firebase.js (à jour)
 async function saveTrade(trade) {
-    if (!db) {
-        console.log("⚠️ Firebase non disponible, trade non sauvegardé");
-        return false;
-    }
+    if (!db) return false;
     
     try {
-        const docRef = await db.collection('trades').add({
+        const docData = {
             side: trade.side,
-            price: trade.price,
-            size: trade.size,
-            type: trade.type || "OPEN",
+            type: trade.type || "OPEN",  // "OPEN" ou "CLOSED"
             timestamp: admin.firestore.FieldValue.serverTimestamp(),
             date: new Date().toISOString()
-        });
-        console.log(`💾 Trade sauvegardé dans Firebase (ID: ${docRef.id})`);
+        };
+        
+        // Ajouter les champs optionnels
+        if (trade.price) docData.price = trade.price;
+        if (trade.entryPrice) docData.entryPrice = trade.entryPrice;
+        if (trade.exitPrice) docData.exitPrice = trade.exitPrice;
+        if (trade.size) docData.size = trade.size;
+        if (trade.pnl) docData.pnl = parseFloat(trade.pnl);
+        if (trade.stopLoss) docData.stopLoss = trade.stopLoss;
+        if (trade.takeProfit) docData.takeProfit = trade.takeProfit;
+        if (trade.closeReason) docData.closeReason = trade.closeReason;
+        
+        await db.collection('trades').add(docData);
+        console.log(`💾 Trade ${trade.type} sauvegardé`);
         return true;
     } catch (err) {
-        console.log("❌ Erreur sauvegarde Firebase:", err.message);
+        console.log("❌ Erreur sauvegarde:", err.message);
         return false;
     }
 }
 
-async function getRecentTrades(limit = 10) {
-    if (!db) return [];
-    
-    try {
-        const snapshot = await db.collection('trades')
-            .orderBy('timestamp', 'desc')
-            .limit(limit)
-            .get();
-        
-        const trades = [];
-        snapshot.forEach(doc => {
-            trades.push({ id: doc.id, ...doc.data() });
-        });
-        return trades;
-    } catch (err) {
-        console.log("❌ Erreur lecture:", err.message);
-        return [];
-    }
-}
-
-module.exports = { 
-    initFirebase, 
-    saveTrade,
-    getRecentTrades
-};
+module.exports = { initFirebase, saveTrade };
