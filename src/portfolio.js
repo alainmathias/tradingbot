@@ -1,13 +1,44 @@
 const { client } = require('./binance');
 const config = require('./config');
-const firebase = require('./firebase');  // ← AJOUTER
+const firebase = require('./firebase');
+
 let position = null;
 
-// CALCUL DE LA TAILLE
+// ========== NOUVEAU : CALCUL DYNAMIQUE DE LA TAILLE ==========
+function calculatePositionSize(price) {
+    // Récupérer le capital depuis la config (50 USDT)
+    const capital = config.tradingCapital || 50;
+    const riskPercent = config.riskPercent || 1;
+    const stopLossPercent = config.stopLoss || 1.5;
+    
+    // Risque en USDT (ex: 50 × 1% = 0.50 USDT)
+    const riskAmount = capital * (riskPercent / 100);
+    
+    // Distance du stop loss en USDT (ex: 65000 × 1.5% = 975 USDT)
+    const stopDistance = price * (stopLossPercent / 100);
+    
+    // Taille de la position (ex: 0.50 ÷ 975 = 0.00051 BTC)
+    let size = riskAmount / stopDistance;
+    
+    // Arrondir à 3 décimales (minimum 0.001 BTC pour Binance Futures)
+    size = Math.max(size, 0.001);
+    size = parseFloat(size.toFixed(3));
+    
+    // Afficher les détails du calcul
+    console.log(`\n💰 GESTION DES RISQUES (capital: ${capital} USDT):`);
+    console.log(`   Risque par trade: ${riskAmount.toFixed(2)} USDT (${riskPercent}%)`);
+    console.log(`   Prix BTC: ${price.toFixed(2)} USDT`);
+    console.log(`   Distance SL: ${stopDistance.toFixed(2)} USDT (${stopLossPercent}%)`);
+    console.log(`   Taille position: ${size} BTC`);
+    console.log(`   Exposition: ${(size * price).toFixed(2)} USDT`);
+    console.log(`   Perte max si SL: ${(size * price * stopLossPercent / 100).toFixed(2)} USDT\n`);
+    
+    return size;
+}
+
+// ========== ANCIENNE FONCTION (gardée pour compatibilité) ==========
 function getPositionSize(balance, riskPercent, stopLossPercent) {
-
     const risk = balance * (riskPercent / 100);
-
     return risk / stopLossPercent;
 }
 
@@ -25,9 +56,9 @@ function getPosition() {
 function setPosition(pos) {
     position = pos;
 }
-// src/portfolio.js
 
-async function openTrade(side, price, size) {
+// ========== OUVERTURE DE POSITION (MODIFIÉE) ==========
+async function openTrade(side, price, customSize = null) {
     try {
         // Vérifier position existante
         const positions = await client.futuresPositionRisk();
@@ -35,6 +66,21 @@ async function openTrade(side, price, size) {
         
         if (btc && Number(btc.positionAmt) !== 0) {
             console.log("⏳ Position déjà existante");
+            return;
+        }
+
+        // 🆕 Calculer la taille automatiquement (basée sur capital 50 USDT)
+        let size;
+        if (customSize) {
+            size = customSize;
+            console.log(`📊 Taille manuelle: ${size} BTC`);
+        } else {
+            size = calculatePositionSize(price);
+        }
+        
+        // Vérifier que la taille est valide
+        if (size < 0.001) {
+            console.log("❌ Taille trop petite (< 0.001 BTC)");
             return;
         }
 
@@ -79,7 +125,7 @@ async function openTrade(side, price, size) {
         position = {
             side,
             entry: price,
-            size,
+            size: size,
             stopLoss,
             takeProfit,
             slOrderId: slOrder.orderId,
@@ -100,8 +146,9 @@ async function openTrade(side, price, size) {
 
         console.log(`✅ ${side} ORDER EXECUTED`);
         console.log(`   Entry: ${price}`);
-        console.log(`   SL: ${stopLoss} (${config.stopLoss}%)`);
-        console.log(`   TP: ${takeProfit} (${config.takeProfit}%)`);
+        console.log(`   Size: ${size} BTC`);
+        console.log(`   SL: ${stopLoss.toFixed(2)} (${config.stopLoss}%)`);
+        console.log(`   TP: ${takeProfit.toFixed(2)} (${config.takeProfit}%)`);
         
         return order;
 
@@ -110,6 +157,7 @@ async function openTrade(side, price, size) {
     }
 }
 
+// ========== FERMETURE DE POSITION ==========
 async function closePosition() {
     if (!position) {
         console.log("⚠️ Aucune position locale");
@@ -128,7 +176,7 @@ async function closePosition() {
             await firebase.saveTrade({
                 side: position.side,
                 entryPrice: position.entry,
-                exitPrice: position.entry,  // Prix estimé
+                exitPrice: position.entry,
                 size: position.size,
                 type: "CLOSED",
                 closeReason: "MANUAL",
@@ -183,13 +231,12 @@ async function closePosition() {
     }
 }
 
-// ... reste du code (hasOpenPosition, getPosition, setPosition, etc.)
-
 module.exports = {
     openTrade,
     closePosition,
     hasOpenPosition,
     getPosition,
     setPosition,
-    getPositionSize
+    getPositionSize,
+    calculatePositionSize  // 🆕 Exporter la nouvelle fonction
 };
