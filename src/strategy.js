@@ -1,3 +1,5 @@
+/*
+
 const config = require('./config');
 const { getRSI, getMACD, getEMA, getAverageVolume } = require('./indicators');
 
@@ -119,6 +121,46 @@ function getSignal(price, closes, volumes) {
     console.log(`  TOTAL SCORE: ${totalScore} → SIGNAL: ${signal}\n`);
     
     return signal;
+}
+
+module.exports = { getSignal };
+
+
+*/
+
+// strategy.js - MODE TEST (beaucoup de signaux)
+const config = require('./config');
+const { getRSI } = require('./indicators');
+
+// Score plus sensible (moins de seuils)
+function getScore(rsi) {
+    // Version ultra-sensible pour tests
+    if (rsi <= 45) return 40;     // Achat dès RSI < 45
+    if (rsi <= 50) return 20;
+    
+    if (rsi >= 55) return -40;     // Vente dès RSI > 55
+    if (rsi >= 50) return -20;
+    
+    return 0;
+}
+
+function getSignal(price, closes, volumes) {
+    const rsi = getRSI(closes);
+    const score = getScore(rsi);
+    
+    console.log(`\n📊 RSI: ${rsi.toFixed(2)} | SCORE: ${score}`);
+    
+    if (score >= config.minScoreToTrade) {
+        console.log("🔵 SIGNAL: BUY");
+        return "BUY";
+    }
+    if (score <= -config.minScoreToTrade) {
+        console.log("🔴 SIGNAL: SELL");
+        return "SELL";
+    }
+    
+    console.log("⚪ SIGNAL: NONE");
+    return "NONE";
 }
 
 module.exports = { getSignal };
