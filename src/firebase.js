@@ -1,4 +1,4 @@
-// src/firebase.js
+// firebase.js
 const admin = require('firebase-admin');
 
 let db = null;
@@ -32,30 +32,15 @@ function initFirebase() {
     }
 }
 
-// src/firebase.js (à jour)
 async function saveTrade(trade) {
     if (!db) return false;
     
     try {
-        const docData = {
-            side: trade.side,
-            type: trade.type || "OPEN",  // "OPEN" ou "CLOSED"
-            timestamp: admin.firestore.FieldValue.serverTimestamp(),
-            date: new Date().toISOString()
-        };
-        
-        // Ajouter les champs optionnels
-        if (trade.price) docData.price = trade.price;
-        if (trade.entryPrice) docData.entryPrice = trade.entryPrice;
-        if (trade.exitPrice) docData.exitPrice = trade.exitPrice;
-        if (trade.size) docData.size = trade.size;
-        if (trade.pnl) docData.pnl = parseFloat(trade.pnl);
-        if (trade.stopLoss) docData.stopLoss = trade.stopLoss;
-        if (trade.takeProfit) docData.takeProfit = trade.takeProfit;
-        if (trade.closeReason) docData.closeReason = trade.closeReason;
-        
-        await db.collection('trades').add(docData);
-        console.log(`💾 Trade ${trade.type} sauvegardé`);
+        const docRef = await db.collection('trades').add({
+            ...trade,
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
+        });
+        console.log(`💾 Trade sauvegardé (${trade.type})`);
         return true;
     } catch (err) {
         console.log("❌ Erreur sauvegarde:", err.message);
