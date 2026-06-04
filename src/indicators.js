@@ -1,4 +1,4 @@
-// indicators.js - Tous les indicateurs nécessaires
+// indicators.js
 function getRSI(closes, period = 14) {
     if (closes.length < period + 1) return 50;
     let gains = 0, losses = 0;
@@ -14,49 +14,6 @@ function getRSI(closes, period = 14) {
     return 100 - (100 / (1 + rs));
 }
 
-function getMACD(closes, fastPeriod = 12, slowPeriod = 26, signalPeriod = 9) {
-    const getEMA = (data, period) => {
-        if (data.length < period) return data[data.length - 1];
-        const k = 2 / (period + 1);
-        let ema = data[0];
-        for (let i = 1; i < data.length; i++) {
-            ema = data[i] * k + ema * (1 - k);
-        }
-        return ema;
-    };
-    const fastEMA = getEMA(closes, fastPeriod);
-    const slowEMA = getEMA(closes, slowPeriod);
-    const macdLine = fastEMA - slowEMA;
-    const macdHistory = [];
-    const start = Math.max(0, closes.length - 50);
-    for (let i = start; i < closes.length; i++) {
-        const segment = closes.slice(0, i + 1);
-        const f = getEMA(segment, fastPeriod);
-        const s = getEMA(segment, slowPeriod);
-        macdHistory.push(f - s);
-    }
-    const signalLine = getEMA(macdHistory, signalPeriod);
-    const histogram = macdLine - signalLine;
-    return { macdLine, signalLine, histogram };
-}
-
-function getEMA(closes, period) {
-    if (closes.length < period) return closes[closes.length - 1];
-    const k = 2 / (period + 1);
-    let ema = closes[0];
-    for (let i = 1; i < closes.length; i++) {
-        ema = closes[i] * k + ema * (1 - k);
-    }
-    return ema;
-}
-
-function getAverageVolume(volumes, period = 20) {
-    if (volumes.length < period) return volumes[volumes.length - 1];
-    const sum = volumes.slice(-period).reduce((a, b) => a + b, 0);
-    return sum / period;
-}
-
-// ========== NOUVEAU : ATR (Average True Range) ==========
 function getATR(highs, lows, closes, period = 14) {
     if (highs.length < period + 1) return 0;
     let trSum = 0;
@@ -70,4 +27,4 @@ function getATR(highs, lows, closes, period = 14) {
     return trSum / period;
 }
 
-module.exports = { getRSI, getMACD, getEMA, getAverageVolume, getATR };
+module.exports = { getRSI, getATR };
