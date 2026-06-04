@@ -1,4 +1,4 @@
-// strategy.js - Version avec filtre ATR
+// strategy.js - RSI + ATR
 const config = require('./config');
 const { getRSI, getATR } = require('./indicators');
 
@@ -20,28 +20,20 @@ function getRSIScore(rsi) {
 }
 
 function getSignal(price, closes, highs, lows, volumes) {
-    // Calcul du RSI
     const rsi = getRSI(closes);
     let score = getRSIScore(rsi);
     
-    // ========== FILTRE ATR (volatilité) ==========
-    if (config.useATRFilter && highs && lows && highs.length > 0) {
+    // Filtre ATR
+    if (config.useATRFilter && highs && highs.length > 0) {
         const atr = getATR(highs, lows, closes);
-        const avgRange = price * 0.01;  // 1% du prix
+        const avgRange = price * 0.01;
         const minATR = avgRange * (config.atrMinRatio || 0.5);
         
         if (atr < minATR) {
-            if (config.debug) {
-                console.log(`   ⚠️ Volatilité trop faible (ATR: ${atr.toFixed(2)} < ${minATR.toFixed(2)}) → signal ignoré`);
-            }
             return "NONE";
-        }
-        if (config.debug) {
-            console.log(`   ✅ Volatilité OK (ATR: ${atr.toFixed(2)})`);
         }
     }
     
-    // Confirmation sur 2 bougies consécutives
     let signal = "NONE";
     if (score >= config.minScoreToTrade) {
         signal = "BUY";
@@ -49,6 +41,7 @@ function getSignal(price, closes, highs, lows, volumes) {
         signal = "SELL";
     }
     
+    // Confirmation sur 2 bougies
     if (signal === lastSignal && signal !== "NONE") {
         consecutiveSignals++;
         if (consecutiveSignals < 2) {
@@ -60,7 +53,7 @@ function getSignal(price, closes, highs, lows, volumes) {
     
     lastSignal = signal;
     
-    console.log(`\n📊 RSI: ${rsi.toFixed(2)} | SCORE: ${score} | SIGNAL: ${signal}`);
+    console.log(`📊 RSI: ${rsi.toFixed(1)} | Score: ${score} | Signal: ${signal}`);
     
     return signal;
 }
