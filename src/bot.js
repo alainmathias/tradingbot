@@ -47,22 +47,27 @@ async function syncPositionWithBinance() {
                 ? (exitPrice - localPosition.entry) * localPosition.size
                 : (localPosition.entry - exitPrice) * localPosition.size;
             
-            await firebase.saveTrade({
-                side: localPosition.side,
-                entryPrice: localPosition.entry,
-                exitPrice: exitPrice,
-                size: localPosition.size,
-                pnl: pnl.toFixed(2),
-                type: "CLOSED",
-                closeReason: "SL/TP",
-                timestamp: new Date().toISOString()
-            });
+            // Enregistrer seulement si P&L non nul
+            if (Math.abs(pnl) >= 0.01) {
+                await firebase.saveTrade({
+                    side: localPosition.side,
+                    entryPrice: localPosition.entry,
+                    exitPrice: exitPrice,
+                    size: localPosition.size,
+                    pnl: pnl.toFixed(2),
+                    type: "CLOSED",
+                    closeReason: "SL/TP",
+                    timestamp: new Date().toISOString()
+                });
+                console.log(`✅ Position fermée enregistrée | P&L: ${pnl.toFixed(2)} USDT`);
+            } else {
+                console.log(`⚠️ Position fermée avec P&L nul (${pnl.toFixed(4)}), non enregistré`);
+            }
             
-            console.log(`✅ Position fermée enregistrée | P&L: ${pnl.toFixed(2)} USDT`);
             portfolio.setPosition(null);
         }
         
-        // Position ouverte sur Binance mais pas en local
+        // Position ouverte sur Binance mais pas en local (redémarrage)
         if (binanceQty !== 0 && !localPosition) {
             console.log("🔄 Synchronisation: Position existante sur Binance");
             portfolio.setPosition({
@@ -79,7 +84,6 @@ async function syncPositionWithBinance() {
 
 async function run() {
     try {
-        // Synchronisation au début
         await syncPositionWithBinance();
         
         const { closes, highs, lows, volumes } = await getCandles();
@@ -91,15 +95,11 @@ async function run() {
         const signal = getSignal(price, closes, highs, lows, volumes);
         const now = Date.now();
         
-        const positions = await client.futuresPositionRisk();
-        const current = positions.find(p => p.symbol === config.symbol);
-        const qty = current ? Number(current.positionAmt) : 0;
-        
         const position = portfolio.getPosition();
         
         if (signal === "BUY" && now - lastTrade > config.cooldown) {
             if (position && position.side === "BUY") return;
-            if (position) await portfolio.closePosition();
+            if (position) await portfolio.closePosition("REVERSAL");
             await portfolio.openTrade("BUY", price);
             lastTrade = now;
             return;
@@ -107,7 +107,7 @@ async function run() {
         
         if (signal === "SELL" && now - lastTrade > config.cooldown) {
             if (position && position.side === "SELL") return;
-            if (position) await portfolio.closePosition();
+            if (position) await portfolio.closePosition("REVERSAL");
             await portfolio.openTrade("SELL", price);
             lastTrade = now;
             return;
@@ -118,7 +118,6 @@ async function run() {
     }
 }
 
-// ===== DÉMARRAGE =====
 (async () => {
     try {
         await syncTime();
@@ -136,7 +135,7 @@ async function run() {
         }
         
         console.log(`✅ BOT STARTED - ${config.symbol} on ${config.interval}`);
-        console.log(`💰 Capital: $${config.tradingCapital} | Risk: ${config.riskPercent}% | SL:${config.stopLoss}% TP:${config.takeProfit}%`);
+        console.log(`💰 Capital: $${config.tradingCapital} | Risk: ${config.riskPercent}% | SL:${config.stopLoss}% TP:${config.takeProfit}% (1:1)`);
         
         setInterval(run, 10000);
         
